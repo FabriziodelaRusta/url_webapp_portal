@@ -1,0 +1,6 @@
+{
+  "name": "Mez Itinéraires — Portail Gravel & GPX",
+  "description": "Page d'accueil et portail d'exploration gravel bike avec courbes de niveaux topographiques, traces GPX et redirection vers les applications du projet.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

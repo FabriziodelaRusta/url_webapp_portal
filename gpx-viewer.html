@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visionneur GPX & Trace Gravel — Mez Itinéraires</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background-color: #0f1416;
+      color: #e6ecea;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-[#e06d3b]/30">
+  <header class="border-b border-neutral-800 bg-[#0f1416]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-8">
+      <a href="index.html" class="text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:text-[#e06d3b] transition-colors">
+        Mez Itinéraires
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-neutral-400">
+        <a href="index.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Accueil</a>
+        <a href="routes.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Parcours GPX</a>
+        <a href="gpx-viewer.html" class="text-white font-medium whitespace-nowrap shrink-0">Visionneur GPX</a>
+        <a href="elevation.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Altimétrie</a>
+        <a href="bikepacking.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Bikepacking</a>
+      </nav>
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="index.html" class="px-3.5 py-1.5 text-xs font-medium text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors whitespace-nowrap shrink-0">
+          ← Retour au portail
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-12">
+    <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div>
+        <div class="text-xs text-[#e06d3b] font-mono mb-2 uppercase tracking-wider">Visionneur Topographique & Données Satellitaires</div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-2">Visualiseur de Traces GPX</h1>
+        <p class="text-neutral-400 max-w-xl text-sm">
+          Inspection détaillée des segments gravel, waypoints de ravitaillement, points d'eau et estimation du temps de parcours.
+        </p>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="cursor-pointer px-4 py-2 text-xs font-medium bg-[#e06d3b] hover:bg-[#c85a2b] text-white rounded-lg transition-colors inline-flex items-center gap-2">
+          <span>Importer un fichier .GPX</span>
+          <input type="file" accept=".gpx" class="hidden" onchange="alert('Fichier GPX chargé avec succès dans le lecteur.')">
+        </label>
+      </div>
+    </div>
+
+    <!-- Map Canvas Simulator -->
+    <div class="relative rounded-2xl border border-neutral-800 bg-[#141b1e] p-6 overflow-hidden shadow-2xl mb-8">
+      <!-- Topo Lines Graphic -->
+      <svg class="w-full h-96 opacity-80" viewBox="0 0 900 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Contour Lines -->
+        <path d="M-50 120 C 180 80, 320 220, 600 140 C 740 90, 850 160, 950 130" stroke="#374151" stroke-width="1.2" stroke-dasharray="4 4" />
+        <path d="M-50 180 C 140 130, 290 280, 560 200 C 710 140, 820 220, 950 190" stroke="#4b5563" stroke-width="1.5" />
+        <path d="M-50 240 C 160 200, 340 330, 620 240 C 760 190, 840 280, 950 250" stroke="#374151" stroke-width="1.2" stroke-dasharray="4 4" />
+        <path d="M-50 300 C 200 260, 390 380, 670 290 C 800 230, 890 320, 950 310" stroke="#4b5563" stroke-width="1.5" />
+        
+        <!-- GPX Gravel Track -->
+        <path id="gpxPath" d="M 80 320 Q 220 300 290 240 T 450 170 T 630 220 T 820 110" stroke="#e06d3b" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+        
+        <!-- Waypoints -->
+        <circle cx="80" cy="320" r="7" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+        <text x="75" y="348" fill="#10b981" font-size="12" font-family="JetBrains Mono" font-weight="bold">DÉPART (Alt. 420m)</text>
+
+        <circle cx="450" cy="170" r="6" fill="#f59e0b" stroke="#ffffff" stroke-width="2" />
+        <text x="410" y="150" fill="#f59e0b" font-size="11" font-family="JetBrains Mono">Col de l'Épine (980m)</text>
+
+        <circle cx="820" cy="110" r="7" fill="#ef4444" stroke="#ffffff" stroke-width="2.5" />
+        <text x="770" y="90" fill="#ef4444" font-size="12" font-family="JetBrains Mono" font-weight="bold">ARRIVÉE (Alt. 1240m)</text>
+      </svg>
+
+      <!-- Overlay Telemetry -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-neutral-800 text-xs font-mono">
+        <div>
+          <span class="text-neutral-500 block">Distance totale</span>
+          <span class="text-base text-white font-bold">84.5 km</span>
+        </div>
+        <div>
+          <span class="text-neutral-500 block">Dénivelé positif (D+)</span>
+          <span class="text-base text-[#e06d3b] font-bold">+1 640 m</span>
+        </div>
+        <div>
+          <span class="text-neutral-500 block">Altitude Max</span>
+          <span class="text-base text-white font-bold">1 240 m</span>
+        </div>
+        <div>
+          <span class="text-neutral-500 block">Pente Maximale</span>
+          <span class="text-base text-amber-400 font-bold">14.8 %</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Équipement & Bikepacking — Mez Itinéraires</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background-color: #0f1416;
+      color: #e6ecea;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-[#e06d3b]/30">
+  <header class="border-b border-neutral-800 bg-[#0f1416]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-8">
+      <a href="index.html" class="text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:text-[#e06d3b] transition-colors">
+        Mez Itinéraires
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-neutral-400">
+        <a href="index.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Accueil</a>
+        <a href="routes.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Parcours GPX</a>
+        <a href="gpx-viewer.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Visionneur GPX</a>
+        <a href="elevation.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Altimétrie</a>
+        <a href="bikepacking.html" class="text-white font-medium whitespace-nowrap shrink-0">Bikepacking</a>
+      </nav>
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="index.html" class="px-3.5 py-1.5 text-xs font-medium text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors whitespace-nowrap shrink-0">
+          ← Retour au portail
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-12">
+    <div class="mb-10">
+      <div class="text-xs text-[#e06d3b] font-mono mb-2 uppercase tracking-wider">Aventure & Autonomie Gravel</div>
+      <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-2">Guide Matériel Bikepacking</h1>
+      <p class="text-neutral-400 max-w-xl text-sm">
+        Listes de paquetage optimisées pour l'itinérance sur pistes caillouteuses : sacoches de cadre, filtration d'eau et bivouac léger.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-6">
+        <h3 class="text-base font-bold text-white mb-2">Sacoche de selle & Cadre</h3>
+        <p class="text-xs text-neutral-400 mb-4">Centrage des masses basses pour préserver la maniabilité sur les portions pierreuses.</p>
+        <div class="text-xs font-mono text-neutral-300 space-y-2">
+          <div>· Sacoche de cadre 4L (outils & pompe)</div>
+          <div>· Sacoche de selle 14L étanche</div>
+          <div>· Top tube bag (alimentation rapide)</div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-6">
+        <h3 class="text-base font-bold text-white mb-2">Système de Couchage</h3>
+        <p class="text-xs text-neutral-400 mb-4">Légèreté et compacité sous abri naturel ou tente monoparoi ultra-légère.</p>
+        <div class="text-xs font-mono text-neutral-300 space-y-2">
+          <div>· Tente ultra-light ou Tarp dyneema</div>
+          <div>· Matelas gonflable R-Value 3.2+</div>
+          <div>· Duvet en duvet d'oie 800 cuin</div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-6">
+        <h3 class="text-base font-bold text-white mb-2">Navigation & Énergie</h3>
+        <p class="text-xs text-neutral-400 mb-4">Autonomie GPS sans dépendre des prises secteur pendant 72h.</p>
+        <div class="text-xs font-mono text-neutral-300 space-y-2">
+          <div>· Compteur GPS avec carto offline</div>
+          <div>· Batterie externe 10 000 mAh PD</div>
+          <div>· Lampe frontale 600 lumens</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

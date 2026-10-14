@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catalogue des Parcours — Mez Itinéraires</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background-color: #0f1416;
+      color: #e6ecea;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .topo-bg {
+      background-image: radial-gradient(rgba(224, 109, 59, 0.08) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+  </style>
+</head>
+<body class="min-h-screen topo-bg selection:bg-[#e06d3b]/30">
+  <!-- Top Bar -->
+  <header class="border-b border-neutral-800 bg-[#0f1416]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-8">
+      <a href="index.html" class="text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:text-[#e06d3b] transition-colors">
+        Mez Itinéraires
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-neutral-400">
+        <a href="index.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Accueil</a>
+        <a href="routes.html" class="text-white font-medium whitespace-nowrap shrink-0">Parcours GPX</a>
+        <a href="gpx-viewer.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Visionneur GPX</a>
+        <a href="elevation.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Altimétrie</a>
+        <a href="bikepacking.html" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Bikepacking</a>
+      </nav>
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="index.html" class="px-3.5 py-1.5 text-xs font-medium text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg border border-neutral-700 transition-colors whitespace-nowrap shrink-0">
+          ← Retour au portail
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-12">
+    <!-- Header -->
+    <div class="mb-10">
+      <div class="text-xs text-[#e06d3b] font-mono mb-2 uppercase tracking-wider">Base de données d'itinéraires · Format GPX</div>
+      <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-3">Catalogue des Parcours Gravel</h1>
+      <p class="text-neutral-400 max-w-2xl text-base">
+        Sélection de traces gravel vérifiées, mêlant pistes forestières DFCI, chemins de crête et singletracks roulants avec profils d'élévation précis.
+      </p>
+    </div>
+
+    <!-- Routes Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Card 1 -->
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-6 flex flex-col justify-between hover:border-neutral-700 transition-all">
+        <div>
+          <div class="flex items-center justify-between text-xs text-neutral-400 mb-3">
+            <span>Massif Central</span>
+            <span aria-hidden="true">·</span>
+            <span class="font-mono text-emerald-400">Modéré</span>
+          </div>
+          <h2 class="text-xl font-bold text-white mb-2">Boucle des Hautes Terres</h2>
+          <p class="text-sm text-neutral-400 mb-6">
+            Pistes volcaniques ouvertes, traversée de plateaux d'estive et sentiers rapides avec panoramas à 360°.
+          </p>
+          <div class="text-xs font-mono text-neutral-300 space-y-1 mb-6 border-t border-neutral-800/80 pt-4">
+            <div class="flex justify-between"><span>Distance :</span><span class="text-white">74.2 km</span></div>
+            <div class="flex justify-between"><span>Dénivelé positif :</span><span class="text-white">+1 380 m</span></div>
+            <div class="flex justify-between"><span>Revêtement :</span><span class="text-white">72% Gravel / 28% Route</span></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <a href="gpx-viewer.html" class="flex-1 text-center py-2 px-3 text-xs font-medium rounded-lg bg-[#e06d3b] text-white hover:bg-[#c85a2b] transition-colors">
+            Voir la trace
+          </a>
+          <a href="elevation.html" class="py-2 px-3 text-xs font-medium rounded-lg bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors">
+            Dénivelé
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-6 flex flex-col justify-between hover:border-neutral-700 transition-all">
+        <div>
+          <div class="flex items-center justify-between text-xs text-neutral-400 mb-3">
+            <span>Préalpes du Sud</span>
+            <span aria-hidden="true">·</span>
+            <span class="font-mono text-amber-400">Exigeant</span>
+          </div>
+          <h2 class="text-xl font-bold text-white mb-2">Piste des Crêtes & Col Perdu</h2>
+          <p class="text-sm text-neutral-400 mb-6">
+            Montée régulière sur DFCI caillouteuse menant à une crête panoramique et descente technique en sous-bois.
+          </p>
+          <div class="text-xs font-mono text-neutral-300 space-y-1 mb-6 border-t border-neutral-800/80 pt-4">
+            <div class="flex justify-between"><span>Distance :</span><span class="text-white">92.0 km</span></div>
+            <div class="flex justify-between"><span>Dénivelé positif :</span><span class="text-white">+2 150 m</span></div>
+            <div class="flex justify-between"><span>Revêtement :</span><span class="text-white">80% Gravel / 20% Route</span></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <a href="gpx-viewer.html" class="flex-1 text-center py-2 px-3 text-xs font-medium rounded-lg bg-[#e06d3b] text-white hover:bg-[#c85a2b] transition-colors">
+            Voir la trace
+          </a>
+          <a href="elevation.html" class="py-2 px-3 text-xs font-medium rounded-lg bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors">
+            Dénivelé
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="rounded-xl border border-neutral-800 bg-neutral-900/60 p-6 flex flex-col justify-between hover:border-neutral-700 transition-all">
+        <div>
+          <div class="flex items-center justify-between text-xs text-neutral-400 mb-3">
+            <span>Sologne & Forêts</span>
+            <span aria-hidden="true">·</span>
+            <span class="font-mono text-emerald-400">Accessible</span>
+          </div>
+          <h2 class="text-xl font-bold text-white mb-2">La Ligne Verte Forestière</h2>
+          <p class="text-sm text-neutral-400 mb-6">
+            Chemins sablonneux compactés au bord d'étangs sauvages, idéal pour une sortie rapide ou initiation bikepacking.
+          </p>
+          <div class="text-xs font-mono text-neutral-300 space-y-1 mb-6 border-t border-neutral-800/80 pt-4">
+            <div class="flex justify-between"><span>Distance :</span><span class="text-white">58.4 km</span></div>
+            <div class="flex justify-between"><span>Dénivelé positif :</span><span class="text-white">+410 m</span></div>
+            <div class="flex justify-between"><span>Revêtement :</span><span class="text-white">85% Sentiers / 15% Route</span></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <a href="gpx-viewer.html" class="flex-1 text-center py-2 px-3 text-xs font-medium rounded-lg bg-[#e06d3b] text-white hover:bg-[#c85a2b] transition-colors">
+            Voir la trace
+          </a>
+          <a href="elevation.html" class="py-2 px-3 text-xs font-medium rounded-lg bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors">
+            Dénivelé
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
