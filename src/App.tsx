@@ -117,7 +117,7 @@ const DEFAULT_SALTED_ADMIN_HASH = '07d5fb0d1a42efd8ebad57335728a3f858276f5b9d31d
 
 const DEFAULT_CONFIG: PageConfig = {
   showTitle: true,
-  titleText: 'Mez Itinéraires — Portail Gravel',
+  titleText: 'Outils & utilitaires',
   titleFont: 'Plus Jakarta Sans',
   titleFontSize: 32,
   titleColor: '#1e293b',
