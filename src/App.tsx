@@ -254,6 +254,15 @@ const DEFAULT_CONFIG: PageConfig = {
       targetUrl: 'routes.html#boussole',
       label: 'Orientation & Boussole',
       openInNewTab: false
+    },
+    {
+      id: 'icon-1792489288375',
+      row: 1,
+      col: 1,
+      iconPath: 'Bike',
+      targetUrl: 'https://fabriziodelarusta.github.io/LiveTrack/',
+      label: 'Nouvelle page',
+      openInNewTab: false
     }
   ]
 };
@@ -649,38 +658,77 @@ export default function App() {
   };
 
   // Sorted icons: strictly sorted by ROW first, then by COLUMN
+  // If two icons share the same row and col, prioritize the newer one (custom user icon)
   const sortedIcons = useMemo(() => {
     return [...config.icons].sort((a, b) => {
       if (a.row !== b.row) return a.row - b.row;
-      return a.col - b.col;
+      if (a.col !== b.col) return a.col - b.col;
+      // Newer created icon takes precedence on collision
+      return (b.id || '').localeCompare(a.id || '');
     });
   }, [config.icons]);
 
-  // Icons that fit within the grid
-  const inGridIcons = useMemo(() => {
-    return sortedIcons.filter(
-      item => item.row <= config.gridRows && item.col <= config.gridCols
-    );
-  }, [sortedIcons, config.gridRows, config.gridCols]);
+  // Separate icons into in-grid cells and overflow items with conflict handling
+  const { inGridIcons, overflowIcons, gridCells, positionConflicts } = useMemo(() => {
+    const occupied = new Map<string, GridIconItem>();
+    const inGridList: GridIconItem[] = [];
+    const overflows: GridIconItem[] = [];
+    const conflictsMap = new Map<string, GridIconItem[]>();
 
-  // Icons exceeding the grid (overflow icons)
-  const overflowIcons = useMemo(() => {
-    return sortedIcons.filter(
-      item => item.row > config.gridRows || item.col > config.gridCols
-    );
-  }, [sortedIcons, config.gridRows, config.gridCols]);
+    // 1. Group icons by position key
+    for (const item of sortedIcons) {
+      const key = `${item.row}-${item.col}`;
+      const group = conflictsMap.get(key) || [];
+      group.push(item);
+      conflictsMap.set(key, group);
+    }
 
-  // Matrix of cells within the grid
-  const gridCells = useMemo(() => {
+    const detectedConflicts: { key: string; row: number; col: number; items: GridIconItem[] }[] = [];
+    conflictsMap.forEach((items, key) => {
+      if (items.length > 1) {
+        const [r, c] = key.split('-').map(Number);
+        detectedConflicts.push({ key, row: r, col: c, items });
+      }
+    });
+
+    // 2. Assign to grid cells and overflow
+    // When multiple icons share the same (row, col):
+    // The first item (newest/user custom icon) takes the grid cell.
+    // Conflicting duplicate icons are placed into overflows so they appear in the dropdown list and are NEVER lost!
+    for (const item of sortedIcons) {
+      const isInside = item.row >= 1 && item.row <= config.gridRows && item.col >= 1 && item.col <= config.gridCols;
+      const key = `${item.row}-${item.col}`;
+
+      if (isInside) {
+        if (!occupied.has(key)) {
+          occupied.set(key, item);
+          inGridList.push(item);
+        } else {
+          // Position conflict: this cell already has an icon!
+          // Put the duplicate into overflows so it appears in the dropdown list below the grid
+          overflows.push(item);
+        }
+      } else {
+        overflows.push(item);
+      }
+    }
+
+    // 3. Build the grid matrix
     const cells: { row: number; col: number; item?: GridIconItem }[] = [];
     for (let r = 1; r <= config.gridRows; r++) {
       for (let c = 1; c <= config.gridCols; c++) {
-        const item = inGridIcons.find(i => i.row === r && i.col === c);
+        const item = occupied.get(`${r}-${c}`);
         cells.push({ row: r, col: c, item });
       }
     }
-    return cells;
-  }, [config.gridRows, config.gridCols, inGridIcons]);
+
+    return {
+      inGridIcons: inGridList,
+      overflowIcons: overflows,
+      gridCells: cells,
+      positionConflicts: detectedConflicts
+    };
+  }, [sortedIcons, config.gridRows, config.gridCols]);
 
   // Handle cell click from preview to quickly assign/edit icon
   const handleCellClick = (row: number, col: number) => {
@@ -720,6 +768,36 @@ export default function App() {
     });
     setEditingIcon(null);
     setIsAddingNew(false);
+  };
+
+  // Reassign an icon to the next free cell in the grid
+  const resolveConflict = (conflictIconId: string) => {
+    let targetRow = 1;
+    let targetCol = 1;
+    let found = false;
+
+    for (let r = 1; r <= config.gridRows; r++) {
+      for (let c = 1; c <= config.gridCols; c++) {
+        const isOccupied = config.icons.some(i => i.id !== conflictIconId && i.row === r && i.col === c);
+        if (!isOccupied) {
+          targetRow = r;
+          targetCol = c;
+          found = true;
+          break;
+        }
+      }
+      if (found) break;
+    }
+
+    if (!found) {
+      targetRow = config.gridRows + 1;
+      targetCol = 1;
+    }
+
+    setConfig(prev => ({
+      ...prev,
+      icons: prev.icons.map(i => i.id === conflictIconId ? { ...i, row: targetRow, col: targetCol } : i)
+    }));
   };
 
   const deleteIconItem = (id: string) => {
@@ -1771,6 +1849,48 @@ export default function App() {
                 </div>
               </form>
 
+              {/* Rendre visible à tous les visiteurs (GitHub Pages) */}
+              <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-250 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-blue-950 text-xs flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Visibilité pour TOUS les visiteurs (GitHub Pages)</span>
+                  </h4>
+                  {firebaseCfg.apiKey && firebaseCfg.projectId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const jsonStr = JSON.stringify({
+                          apiKey: firebaseCfg.apiKey.trim(),
+                          authDomain: firebaseCfg.authDomain?.trim() || `${firebaseCfg.projectId.trim()}.firebaseapp.com`,
+                          projectId: firebaseCfg.projectId.trim(),
+                          databaseId: firebaseCfg.databaseId?.trim() || '(default)',
+                          appId: firebaseCfg.appId?.trim() || ''
+                        }, null, 2);
+                        navigator.clipboard.writeText(jsonStr);
+                        setSyncStatus({ type: 'success', message: 'Configuration copiée ! Collez-la dans src/firebase-config.json' });
+                      }}
+                      className="py-1 px-2.5 rounded bg-white hover:bg-blue-100 border border-blue-300 text-blue-900 text-[10px] font-semibold flex items-center gap-1 shadow-2xs"
+                    >
+                      <Copy className="w-3 h-3 text-blue-700" />
+                      <span>Copier JSON</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-blue-900 leading-relaxed space-y-1.5">
+                  <p>
+                    <strong>💡 Pourquoi vos visiteurs ne voyaient pas encore la nouvelle icône ?</strong>
+                  </p>
+                  <p className="text-[10px] text-blue-800">
+                    1. <strong>Vos clés Firebase</strong> étaient jusqu'ici enregistrées uniquement dans le <code>localStorage</code> de votre propre navigateur. Les visiteurs qui ouvrent <code>https://fabriziodelarusta.github.io/</code> ont un navigateur vierge et ne savaient pas à quelle base se connecter.
+                  </p>
+                  <p className="text-[10px] text-blue-800">
+                    2. <strong>La solution permanente</strong> : nous avons créé le fichier <code>src/firebase-config.json</code> dans le projet. Une fois vos clés renseignées dans ce fichier et poussées sur GitHub (<code>git push</code>), l'application se connectera automatiquement à Firestore pour <strong>100% de vos visiteurs</strong> !
+                  </p>
+                </div>
+              </div>
+
               {/* 3. Fichiers Icônes sur GitHub (Lecture Seule) */}
               <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
                 <div className="flex items-center justify-between">
@@ -2289,6 +2409,49 @@ export default function App() {
                       <span>Ajouter</span>
                     </button>
                   </div>
+
+                  {/* Alerte si conflit de position (plusieurs icônes sur la même case) */}
+                  {positionConflicts.length > 0 && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs space-y-2">
+                      <div className="flex items-center gap-2 font-bold text-[11px] text-amber-900">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Même case partagée par plusieurs icônes ({positionConflicts.length})</span>
+                      </div>
+                      <p className="text-[10px] text-amber-800 leading-relaxed">
+                        Plusieurs icônes ont le même numéro de Ligne et Colonne. L'icône la plus récente est affichée dans la grille, et la seconde est automatiquement basculée dans la <strong>liste déroulante</strong> sous la grille :
+                      </p>
+                      {positionConflicts.map(c => (
+                        <div key={c.key} className="p-2.5 bg-white rounded-lg border border-amber-200 text-[10px] space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[#cf4c1b]">Case Ligne {c.row} · Colonne {c.col} :</span>
+                            <span className="text-[9px] text-neutral-500 font-mono">({c.items.length} icônes)</span>
+                          </div>
+                          <div className="space-y-1">
+                            {c.items.map((it, idx) => (
+                              <div key={it.id} className="flex items-center justify-between gap-1 pl-1">
+                                <span className="truncate max-w-[200px]">
+                                  <strong>{it.label || 'Sans nom'}</strong>
+                                  <span className="text-neutral-500 text-[9px] ml-1">
+                                    {idx === 0 ? '✓ (Grille)' : '↳ (Déroulante)'}
+                                  </span>
+                                </span>
+                                {idx > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => resolveConflict(it.id)}
+                                    className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold text-[9px] transition-colors"
+                                    title="Déplacer vers la prochaine case libre"
+                                  >
+                                    Case libre
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <div className="text-[11px] font-bold text-neutral-800 uppercase tracking-wider flex items-center justify-between">

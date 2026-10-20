@@ -18,16 +18,40 @@ let firebaseApp: FirebaseApp | null = null;
 let firestoreDb: Firestore | null = null;
 let firebaseAuth: Auth | null = null;
 
-// Load saved config from localStorage
+import defaultFirebaseConfig from './firebase-config.json';
+
+// Load saved config from localStorage, falling back to embedded config (for all public visitors)
 export function getSavedFirebaseConfig(): FirebaseClientConfig | null {
   try {
     const raw = localStorage.getItem(FIREBASE_STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.apiKey && parsed.projectId) {
+        return parsed;
+      }
     }
   } catch (err) {
     console.warn('Error reading saved Firebase config:', err);
   }
+
+  // Fallback to embedded configuration (baked into build for public visitors)
+  if (defaultFirebaseConfig && defaultFirebaseConfig.apiKey && defaultFirebaseConfig.projectId) {
+    return defaultFirebaseConfig as FirebaseClientConfig;
+  }
+
+  // Fallback to Vite environment variables if available
+  const envApiKey = (import.meta as any).env?.VITE_FIREBASE_API_KEY;
+  const envProjectId = (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID;
+  if (envApiKey && envProjectId) {
+    return {
+      apiKey: envApiKey,
+      authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || `${envProjectId}.firebaseapp.com`,
+      projectId: envProjectId,
+      databaseId: (import.meta as any).env?.VITE_FIREBASE_DATABASE_ID || '(default)',
+      appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || ''
+    };
+  }
+
   return null;
 }
 
