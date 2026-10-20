@@ -39,6 +39,12 @@ export function getSavedFirebaseConfig(): FirebaseClientConfig | null {
     return defaultFirebaseConfig as FirebaseClientConfig;
   }
 
+  // Fallback to window.__FIREBASE_CONFIG__ if injected in index.html
+  const windowConfig = typeof window !== 'undefined' ? (window as any).__FIREBASE_CONFIG__ : null;
+  if (windowConfig && windowConfig.apiKey && windowConfig.projectId) {
+    return windowConfig as FirebaseClientConfig;
+  }
+
   // Fallback to Vite environment variables if available
   const envApiKey = (import.meta as any).env?.VITE_FIREBASE_API_KEY;
   const envProjectId = (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID;

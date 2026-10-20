@@ -42,7 +42,8 @@ import {
   Globe,
   Info,
   HelpCircle,
-  Server
+  Server,
+  Download
 } from 'lucide-react';
 
 import { User } from 'firebase/auth';
@@ -171,7 +172,7 @@ const DEFAULT_CONFIG: PageConfig = {
     borderRadius: 14
   },
 
-  gridRows: 2,
+  gridRows: 3,
   gridCols: 3,
   gridGap: 36,
 
@@ -182,7 +183,7 @@ const DEFAULT_CONFIG: PageConfig = {
   labelFontSize: 13,
 
   showVersion: true,
-  versionText: 'v 1.2 FabriziodelaRusta',
+  versionText: 'v 1.3 FabriziodelaRusta',
   versionColor: '#786c5e',
 
   security: {
@@ -257,8 +258,8 @@ const DEFAULT_CONFIG: PageConfig = {
     },
     {
       id: 'icon-1792489288375',
-      row: 1,
-      col: 1,
+      row: 3,
+      col: 2,
       iconPath: 'Bike',
       targetUrl: 'https://fabriziodelarusta.github.io/LiveTrack/',
       label: 'Nouvelle page',
@@ -668,14 +669,14 @@ export default function App() {
     });
   }, [config.icons]);
 
-  // Separate icons into in-grid cells and overflow items with conflict handling
-  const { inGridIcons, overflowIcons, gridCells, positionConflicts } = useMemo(() => {
+  // Separate icons into in-grid cells and overflow items with conflict handling & auto-relocation
+  const { inGridIcons, overflowIcons, gridCells, positionConflicts, effectiveGridRows } = useMemo(() => {
     const occupied = new Map<string, GridIconItem>();
     const inGridList: GridIconItem[] = [];
     const overflows: GridIconItem[] = [];
     const conflictsMap = new Map<string, GridIconItem[]>();
 
-    // 1. Group icons by position key
+    // 1. Group icons by position key to detect conflicts
     for (const item of sortedIcons) {
       const key = `${item.row}-${item.col}`;
       const group = conflictsMap.get(key) || [];
@@ -691,31 +692,50 @@ export default function App() {
       }
     });
 
-    // 2. Assign to grid cells and overflow
-    // When multiple icons share the same (row, col):
-    // The first item (newest/user custom icon) takes the grid cell.
-    // Conflicting duplicate icons are placed into overflows so they appear in the dropdown list and are NEVER lost!
-    for (const item of sortedIcons) {
-      const isInside = item.row >= 1 && item.row <= config.gridRows && item.col >= 1 && item.col <= config.gridCols;
-      const key = `${item.row}-${item.col}`;
+    // Automatically calculate required rows so that NO icon is hidden
+    const maxExplicitRow = Math.max(config.gridRows, ...sortedIcons.map(i => i.row || 1));
+    const requiredRowsForCount = Math.ceil(sortedIcons.length / config.gridCols);
+    let calculatedRows = Math.max(config.gridRows, maxExplicitRow, requiredRowsForCount, 1);
 
-      if (isInside) {
-        if (!occupied.has(key)) {
-          occupied.set(key, item);
-          inGridList.push(item);
-        } else {
-          // Position conflict: this cell already has an icon!
-          // Put the duplicate into overflows so it appears in the dropdown list below the grid
-          overflows.push(item);
+    // 2. Assign to grid cells with auto-relocation for conflicting duplicate coordinates:
+    // When multiple icons share the same (row, col) (e.g. icon-1 and icon-1792489288375 both at 1,1):
+    // The second icon is automatically allocated to the next empty cell so that ALL icons
+    // are 100% visible on the screen!
+    for (const item of sortedIcons) {
+      let r = item.row;
+      let c = item.col;
+      let key = `${r}-${c}`;
+
+      if (occupied.has(key)) {
+        // Find next free cell in grid
+        let placed = false;
+        for (let searchR = 1; searchR <= calculatedRows && !placed; searchR++) {
+          for (let searchC = 1; searchC <= config.gridCols && !placed; searchC++) {
+            const candidateKey = `${searchR}-${searchC}`;
+            if (!occupied.has(candidateKey)) {
+              r = searchR;
+              c = searchC;
+              key = candidateKey;
+              placed = true;
+            }
+          }
         }
-      } else {
-        overflows.push(item);
+        if (!placed) {
+          calculatedRows += 1;
+          r = calculatedRows;
+          c = 1;
+          key = `${r}-${c}`;
+        }
       }
+
+      const assignedItem: GridIconItem = { ...item, row: r, col: c };
+      occupied.set(key, assignedItem);
+      inGridList.push(assignedItem);
     }
 
     // 3. Build the grid matrix
     const cells: { row: number; col: number; item?: GridIconItem }[] = [];
-    for (let r = 1; r <= config.gridRows; r++) {
+    for (let r = 1; r <= calculatedRows; r++) {
       for (let c = 1; c <= config.gridCols; c++) {
         const item = occupied.get(`${r}-${c}`);
         cells.push({ row: r, col: c, item });
@@ -726,7 +746,8 @@ export default function App() {
       inGridIcons: inGridList,
       overflowIcons: overflows,
       gridCells: cells,
-      positionConflicts: detectedConflicts
+      positionConflicts: detectedConflicts,
+      effectiveGridRows: calculatedRows
     };
   }, [sortedIcons, config.gridRows, config.gridCols]);
 
@@ -1135,7 +1156,7 @@ export default function App() {
           <div
             className="grid transition-all duration-300"
             style={{
-              gridTemplateRows: `repeat(${config.gridRows}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${effectiveGridRows}, minmax(0, 1fr))`,
               gridTemplateColumns: `repeat(${config.gridCols}, minmax(0, 1fr))`,
               gap: `${config.gridGap}px`,
               maxWidth: `${Math.min(config.gridCols * 190, 1200)}px`
@@ -1857,24 +1878,53 @@ export default function App() {
                     <span>Visibilité pour TOUS les visiteurs (GitHub Pages)</span>
                   </h4>
                   {firebaseCfg.apiKey && firebaseCfg.projectId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const jsonStr = JSON.stringify({
-                          apiKey: firebaseCfg.apiKey.trim(),
-                          authDomain: firebaseCfg.authDomain?.trim() || `${firebaseCfg.projectId.trim()}.firebaseapp.com`,
-                          projectId: firebaseCfg.projectId.trim(),
-                          databaseId: firebaseCfg.databaseId?.trim() || '(default)',
-                          appId: firebaseCfg.appId?.trim() || ''
-                        }, null, 2);
-                        navigator.clipboard.writeText(jsonStr);
-                        setSyncStatus({ type: 'success', message: 'Configuration copiée ! Collez-la dans src/firebase-config.json' });
-                      }}
-                      className="py-1 px-2.5 rounded bg-white hover:bg-blue-100 border border-blue-300 text-blue-900 text-[10px] font-semibold flex items-center gap-1 shadow-2xs"
-                    >
-                      <Copy className="w-3 h-3 text-blue-700" />
-                      <span>Copier JSON</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const jsonStr = JSON.stringify({
+                            apiKey: firebaseCfg.apiKey.trim(),
+                            authDomain: firebaseCfg.authDomain?.trim() || `${firebaseCfg.projectId.trim()}.firebaseapp.com`,
+                            projectId: firebaseCfg.projectId.trim(),
+                            databaseId: firebaseCfg.databaseId?.trim() || '(default)',
+                            appId: firebaseCfg.appId?.trim() || ''
+                          }, null, 2);
+                          navigator.clipboard.writeText(jsonStr);
+                          setSyncStatus({ type: 'success', message: 'Configuration copiée ! Collez-la dans src/firebase-config.json' });
+                        }}
+                        className="py-1 px-2.5 rounded bg-white hover:bg-blue-100 border border-blue-300 text-blue-900 text-[10px] font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
+                        title="Copier le code JSON"
+                      >
+                        <Copy className="w-3 h-3 text-blue-700" />
+                        <span>Copier JSON</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const jsonStr = JSON.stringify({
+                            apiKey: firebaseCfg.apiKey.trim(),
+                            authDomain: firebaseCfg.authDomain?.trim() || `${firebaseCfg.projectId.trim()}.firebaseapp.com`,
+                            projectId: firebaseCfg.projectId.trim(),
+                            databaseId: firebaseCfg.databaseId?.trim() || '(default)',
+                            appId: firebaseCfg.appId?.trim() || ''
+                          }, null, 2);
+                          const blob = new Blob([jsonStr], { type: 'application/json' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = 'firebase-config.json';
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          setSyncStatus({ type: 'success', message: 'Fichier firebase-config.json téléchargé ! Placez-le dans src/ et publiez sur GitHub.' });
+                        }}
+                        className="py-1 px-2.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
+                        title="Télécharger directement le fichier prêt pour GitHub"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Télécharger .json</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -2312,6 +2362,32 @@ export default function App() {
                   <div className="flex justify-between">
                     <span className="text-[#cf4c1b]">Icônes hors grille (liste déroulante) :</span>
                     <span className="text-[#cf4c1b] font-mono font-bold">{overflowIcons.length}</span>
+                  </div>
+                )}
+
+                {positionConflicts.length > 0 && (
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-[11px] space-y-1.5">
+                    <div className="font-bold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>{positionConflicts.length} doublon(s) de coordonnées détecté(s)</span>
+                    </div>
+                    <p className="text-[10px] text-amber-800 leading-snug">
+                      Des icônes partagent la même case (ex: L1, C1). Elles sont automatiquement décalées sur des cases libres pour être 100% visibles.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev,
+                          gridRows: Math.max(prev.gridRows, effectiveGridRows),
+                          icons: inGridIcons
+                        }));
+                        setSyncStatus({ type: 'success', message: 'Positions nettoyées et réassignées sans doublon ! Cliquez sur "Sauvegarder Cloud" pour mettre à jour Firestore.' });
+                      }}
+                      className="w-full py-1 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded font-semibold text-[10px] transition-colors cursor-pointer"
+                    >
+                      Fixer les positions corrigées & agrandir la grille
+                    </button>
                   </div>
                 )}
               </div>
