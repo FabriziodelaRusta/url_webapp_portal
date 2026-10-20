@@ -31,8 +31,41 @@ import {
   KeyRound,
   ShieldCheck,
   ShieldAlert,
-  LogOut
+  LogOut,
+  Cloud,
+  Database,
+  RefreshCw,
+  Copy,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  Globe,
+  Info,
+  HelpCircle,
+  Server
 } from 'lucide-react';
+
+import { User } from 'firebase/auth';
+import {
+  FirebaseClientConfig,
+  getSavedFirebaseConfig,
+  saveFirebaseConfigToLocal,
+  clearSavedFirebaseConfig,
+  initFirebaseService,
+  loginAdminEmail,
+  logoutAdminEmail,
+  subscribeAdminAuthState,
+  savePageConfigToFirebase,
+  loadPageConfigFromFirebase,
+  subscribePageConfigFromFirebase,
+  generateFirestoreRules
+} from './firebase';
+
+const GITHUB_SAMPLE_ICONS = [
+  { path: 'icons/gravel-bike.svg', label: 'Vélo Gravel (public/icons/)' },
+  { path: 'icons/topo-map.svg', label: 'Carte Topo (public/icons/)' },
+  { path: 'icons/compass.svg', label: 'Boussole (public/icons/)' }
+];
 
 interface GridIconItem {
   id: string;
@@ -273,7 +306,194 @@ export default function App() {
   });
 
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'grid' | 'icons' | 'title' | 'logo' | 'security' | 'version'>('grid');
+  const [activeTab, setActiveTab] = useState<'grid' | 'icons' | 'title' | 'logo' | 'firebase' | 'security' | 'version'>('grid');
+
+  // Firebase Integration State
+  const [firebaseCfg, setFirebaseCfg] = useState<FirebaseClientConfig>(() => {
+    return (
+      getSavedFirebaseConfig() || {
+        apiKey: '',
+        authDomain: '',
+        projectId: '',
+        databaseId: '(default)',
+        appId: ''
+      }
+    );
+  });
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(false);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authEmailInput, setAuthEmailInput] = useState('mezitineraires@gmail.com');
+  const [authPassInput, setAuthPassInput] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | 'loading'; message: string } | null>(null);
+  const [realtimeSync, setRealtimeSync] = useState<boolean>(true);
+  const [copiedRules, setCopiedRules] = useState(false);
+  const [selectedGuideTab, setSelectedGuideTab] = useState<'auth' | 'existing_db' | 'rules' | 'github_icons'>('auth');
+
+  // Attempt to initialize Firebase on mount if saved configuration exists
+  useEffect(() => {
+    const saved = getSavedFirebaseConfig();
+    if (saved && saved.apiKey && saved.projectId) {
+      initFirebaseService(saved).then((res) => {
+        if (res) {
+          setIsFirebaseConnected(true);
+          // Auto load remote config if available
+          loadPageConfigFromFirebase().then((remoteData) => {
+            if (remoteData && remoteData.icons) {
+              setConfig((prev) => ({
+                ...prev,
+                ...remoteData,
+                logo: { ...prev.logo, ...(remoteData.logo || {}) },
+                security: { ...prev.security, ...(remoteData.security || {}) }
+              }));
+            }
+          });
+        }
+      });
+    }
+  }, []);
+
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsub = subscribeAdminAuthState((user) => {
+      setFirebaseUser(user);
+      if (user) {
+        setIsAdminAuthenticated(true);
+        try {
+          sessionStorage.setItem('mez_admin_auth', 'true');
+        } catch {}
+      }
+    });
+    return () => unsub();
+  }, [isFirebaseConnected]);
+
+  // Real-time synchronization from Firestore
+  useEffect(() => {
+    if (!isFirebaseConnected || !realtimeSync) return;
+
+    const unsub = subscribePageConfigFromFirebase(
+      (remoteData) => {
+        if (remoteData && remoteData.icons) {
+          setConfig((prev) => ({
+            ...prev,
+            ...remoteData,
+            logo: { ...prev.logo, ...(remoteData.logo || {}) },
+            security: { ...prev.security, ...(remoteData.security || {}) }
+          }));
+        }
+      },
+      (err) => {
+        console.warn('Realtime listener error:', err);
+      }
+    );
+
+    return () => unsub();
+  }, [isFirebaseConnected, realtimeSync]);
+
+  const handleConnectFirebase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firebaseCfg.apiKey.trim() || !firebaseCfg.projectId.trim()) {
+      setSyncStatus({ type: 'error', message: "Veuillez renseigner au minimum la Clé API et l'ID de projet Firebase." });
+      return;
+    }
+    setSyncStatus({ type: 'loading', message: "Connexion au service Firebase..." });
+    try {
+      saveFirebaseConfigToLocal(firebaseCfg);
+      const res = await initFirebaseService(firebaseCfg);
+      if (res) {
+        setIsFirebaseConnected(true);
+        setSyncStatus({ type: 'success', message: "Firebase connecté avec succès !" });
+        const remoteData = await loadPageConfigFromFirebase();
+        if (remoteData && remoteData.icons) {
+          setConfig((prev) => ({
+            ...prev,
+            ...remoteData,
+            logo: { ...prev.logo, ...(remoteData.logo || {}) },
+            security: { ...prev.security, ...(remoteData.security || {}) }
+          }));
+        }
+      } else {
+        setIsFirebaseConnected(false);
+        setSyncStatus({ type: 'error', message: "Échec de l'initialisation Firebase. Vérifiez vos identifiants." });
+      }
+    } catch (err: any) {
+      setIsFirebaseConnected(false);
+      setSyncStatus({ type: 'error', message: err?.message || "Erreur de connexion Firebase." });
+    }
+  };
+
+  const handleAdminEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const user = await loginAdminEmail(authEmailInput, authPassInput);
+      setFirebaseUser(user);
+      setIsAdminAuthenticated(true);
+      try {
+        sessionStorage.setItem('mez_admin_auth', 'true');
+      } catch {}
+      setAuthLoading(false);
+      setAuthPassInput('');
+      setSyncStatus({ type: 'success', message: `Connecté en tant que ${user.email} avec privilèges d'écriture !` });
+    } catch (err: any) {
+      setAuthLoading(false);
+      setAuthError(err?.message || "Identifiants invalides ou service non configuré.");
+    }
+  };
+
+  const handleAdminEmailLogout = async () => {
+    try {
+      await logoutAdminEmail();
+      setFirebaseUser(null);
+      setSyncStatus({ type: 'success', message: "Session Firebase déconnectée." });
+    } catch (err: any) {
+      setSyncStatus({ type: 'error', message: err?.message || "Erreur déconnexion." });
+    }
+  };
+
+  const handleSaveToFirebase = async () => {
+    if (!isFirebaseConnected) {
+      setSyncStatus({ type: 'error', message: "Veuillez d'abord initialiser la connexion Firebase ci-dessous." });
+      return;
+    }
+    if (!firebaseUser) {
+      setSyncStatus({ type: 'error', message: "Écriture refusée : vous devez vous connecter avec votre compte administrateur Firebase." });
+      return;
+    }
+    setSyncStatus({ type: 'loading', message: "Enregistrement de la configuration sur Firestore..." });
+    try {
+      await savePageConfigToFirebase(config);
+      setSyncStatus({ type: 'success', message: "Configuration enregistrée sur Firestore ! Visible immédiatement par tous les visiteurs." });
+    } catch (err: any) {
+      setSyncStatus({ type: 'error', message: `Erreur d'écriture Firestore: ${err?.message || 'Permissions insuffisantes'}` });
+    }
+  };
+
+  const handleLoadFromFirebase = async () => {
+    if (!isFirebaseConnected) {
+      setSyncStatus({ type: 'error', message: "Veuillez connecter Firebase pour charger." });
+      return;
+    }
+    setSyncStatus({ type: 'loading', message: "Lecture depuis Firestore..." });
+    try {
+      const remoteData = await loadPageConfigFromFirebase();
+      if (remoteData && remoteData.icons) {
+        setConfig((prev) => ({
+          ...prev,
+          ...remoteData,
+          logo: { ...prev.logo, ...(remoteData.logo || {}) },
+          security: { ...prev.security, ...(remoteData.security || {}) }
+        }));
+        setSyncStatus({ type: 'success', message: "Configuration chargée depuis Firestore !" });
+      } else {
+        setSyncStatus({ type: 'error', message: "Aucune configuration trouvée dans Firestore (/portal_config/settings)." });
+      }
+    } catch (err: any) {
+      setSyncStatus({ type: 'error', message: `Erreur de lecture Firestore: ${err?.message}` });
+    }
+  };
 
   // Security & Authentication State
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
@@ -1171,6 +1391,18 @@ export default function App() {
             Logo
           </button>
           <button
+            onClick={() => { setActiveTab('firebase'); setEditingIcon(null); }}
+            className={`py-1.5 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'firebase' ? 'bg-white text-[#cf4c1b] shadow-2xs font-bold' : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Firebase ☁️</span>
+            {isFirebaseConnected && (
+              <span className={`w-1.5 h-1.5 rounded-full ${firebaseUser ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            )}
+          </button>
+          <button
             onClick={() => { setActiveTab('security'); setEditingIcon(null); }}
             className={`py-1.5 px-2.5 rounded-md transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'security' ? 'bg-white text-[#cf4c1b] shadow-2xs font-bold' : 'text-neutral-600 hover:text-neutral-900'
@@ -1190,6 +1422,535 @@ export default function App() {
 
         {/* Corps déroulant du panneau */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6 text-xs text-neutral-700">
+          {/* ---------------------------------------------------- */}
+          {/* ONGLET FIREBASE : CLOUD FIRESTORE & AUTH & GITHUB    */}
+          {/* ---------------------------------------------------- */}
+          {activeTab === 'firebase' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-2 border-b border-neutral-200">
+                <div>
+                  <h3 className="font-bold text-neutral-900 text-sm flex items-center gap-2">
+                    <Cloud className="w-4 h-4 text-[#cf4c1b]" />
+                    <span>Synchronisation Firebase Cloud</span>
+                  </h3>
+                  <p className="text-neutral-500 text-[11px]">
+                    Base Firestore, compte administrateur & fichiers GitHub
+                  </p>
+                </div>
+                <div className="p-1 rounded bg-[#cf4c1b]/10 text-[#cf4c1b]">
+                  <Database className="w-4 h-4" />
+                </div>
+              </div>
+
+              {/* Toast / Message de statut */}
+              {syncStatus && (
+                <div
+                  className={`p-3 rounded-xl border flex items-start justify-between gap-2 text-[11px] animate-fadeIn ${
+                    syncStatus.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : syncStatus.type === 'error'
+                      ? 'bg-red-50 border-red-200 text-red-900'
+                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {syncStatus.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
+                    {syncStatus.type === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />}
+                    {syncStatus.type === 'loading' && <RefreshCw className="w-4 h-4 text-blue-600 animate-spin shrink-0 mt-0.5" />}
+                    <span className="font-medium leading-relaxed">{syncStatus.message}</span>
+                  </div>
+                  <button
+                    onClick={() => setSyncStatus(null)}
+                    className="text-neutral-400 hover:text-neutral-700 shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* État de la connexion Firebase & Droits */}
+              <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-2.5">
+                <div className="text-[11px] font-bold text-neutral-800 uppercase tracking-wider">
+                  Statut de l'environnement Cloud
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-white border border-neutral-200">
+                    <div className="text-neutral-500 text-[10px] mb-1">Base Firestore</div>
+                    {isFirebaseConnected ? (
+                      <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="truncate">Connecté ({firebaseCfg.projectId})</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-neutral-500 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-neutral-400" />
+                        <span>Non configuré (Local)</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-neutral-200">
+                    <div className="text-neutral-500 text-[10px] mb-1">Droits d'écriture</div>
+                    {firebaseUser ? (
+                      <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">Admin ({firebaseUser.email?.split('@')[0]})</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-amber-700 font-medium">
+                        <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Lecture seule</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {isFirebaseConnected && firebaseCfg.databaseId && firebaseCfg.databaseId !== '(default)' && (
+                  <div className="text-[10px] text-neutral-600 font-mono bg-white px-2 py-1 rounded border border-neutral-200">
+                    Base ciblée : <strong>{firebaseCfg.databaseId}</strong> (Base nommée)
+                  </div>
+                )}
+              </div>
+
+              {/* Actions de Synchronisation Firestore */}
+              <div className="p-4 rounded-xl bg-white border border-neutral-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-neutral-900 text-xs flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 text-[#cf4c1b]" />
+                    <span>Synchronisation des Données</span>
+                  </h4>
+                  <label className="flex items-center gap-1.5 text-[11px] text-neutral-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={realtimeSync}
+                      onChange={(e) => setRealtimeSync(e.target.checked)}
+                      className="rounded accent-[#cf4c1b]"
+                    />
+                    <span>Temps réel</span>
+                  </label>
+                </div>
+
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  Enregistrez vos modifications dans Firestore pour que tous les visiteurs de votre site GitHub Pages les voient instantanément.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSaveToFirebase}
+                    disabled={!isFirebaseConnected}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
+                      !isFirebaseConnected
+                        ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                        : !firebaseUser
+                        ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                        : 'bg-[#cf4c1b] hover:bg-[#b83811] text-white'
+                    }`}
+                    title={!firebaseUser ? 'Connexion admin requise pour écrire dans Firestore' : 'Sauvegarder'}
+                  >
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>Sauvegarder Cloud</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLoadFromFirebase}
+                    disabled={!isFirebaseConnected}
+                    className={`py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors ${
+                      !isFirebaseConnected
+                        ? 'border-neutral-200 text-neutral-400 cursor-not-allowed'
+                        : 'border-neutral-300 text-neutral-700 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Recharger Cloud</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 1. Authentification Administrateur (Email & Mot de passe) */}
+              <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-neutral-900 text-xs flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-[#cf4c1b]" />
+                    <span>Connexion Admin Firebase (Email & Mot de passe)</span>
+                  </h4>
+                  {firebaseUser && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      Connecté
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  Conformément aux règles Firestore, <strong>seul l'administrateur connecté par email aura le droit d'écrire</strong>. Les visiteurs anonymes liront la base en lecture seule sans pouvoir la modifier.
+                </p>
+
+                {firebaseUser ? (
+                  <div className="p-3 bg-white rounded-lg border border-emerald-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="font-semibold text-neutral-900 text-[11px]">
+                          {firebaseUser.email}
+                        </span>
+                      </div>
+                      <button
+                        onClick={handleAdminEmailLogout}
+                        className="text-[10px] text-red-600 hover:text-red-700 font-semibold"
+                      >
+                        Se déconnecter
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-emerald-800">
+                      ✓ Authentification vérifiée par Firebase Auth. Vos sauvegardes seront acceptées par Firestore.
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleAdminEmailLogin} className="space-y-2.5">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-neutral-700 mb-1">
+                        Adresse e-mail administrateur
+                      </label>
+                      <input
+                        type="email"
+                        value={authEmailInput}
+                        onChange={(e) => setAuthEmailInput(e.target.value)}
+                        placeholder="mezitineraires@gmail.com"
+                        required
+                        className="w-full px-3 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 text-xs focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-neutral-700 mb-1">
+                        Mot de passe administrateur Firebase
+                      </label>
+                      <input
+                        type="password"
+                        value={authPassInput}
+                        onChange={(e) => setAuthPassInput(e.target.value)}
+                        placeholder="Mot de passe créé dans Firebase Auth..."
+                        required
+                        className="w-full px-3 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 text-xs focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
+                      />
+                    </div>
+
+                    {authError && (
+                      <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px]">
+                        {authError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={authLoading || !isFirebaseConnected}
+                      className={`w-full py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
+                        !isFirebaseConnected
+                          ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                          : 'bg-neutral-900 hover:bg-black text-white'
+                      }`}
+                    >
+                      {authLoading ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5" />
+                      )}
+                      <span>Se connecter en tant qu'administrateur</span>
+                    </button>
+                  </form>
+                )}
+              </div>
+
+              {/* 2. Configuration des Identifiants Firebase */}
+              <form onSubmit={handleConnectFirebase} className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-neutral-900 text-xs flex items-center gap-1.5">
+                    <Server className="w-3.5 h-3.5 text-[#cf4c1b]" />
+                    <span>Configuration du projet Firebase</span>
+                  </h4>
+                  {isFirebaseConnected && (
+                    <span className="text-[10px] text-emerald-700 font-medium">Actif</span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-neutral-500">
+                  Collez ci-dessous les paramètres de votre application Web Firebase (console.firebase.google.com).
+                </p>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-700 mb-0.5">
+                      Clé API (apiKey)
+                    </label>
+                    <input
+                      type="text"
+                      value={firebaseCfg.apiKey}
+                      onChange={(e) => setFirebaseCfg({ ...firebaseCfg, apiKey: e.target.value })}
+                      placeholder="AIzaSy..."
+                      required
+                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono text-[11px] focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-700 mb-0.5">
+                      ID du Projet (projectId)
+                    </label>
+                    <input
+                      type="text"
+                      value={firebaseCfg.projectId}
+                      onChange={(e) => setFirebaseCfg({ ...firebaseCfg, projectId: e.target.value })}
+                      placeholder="mon-projet-gravel"
+                      required
+                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono text-[11px] focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-700 mb-0.5">
+                      Nom de la Base Firestore (databaseId)
+                    </label>
+                    <input
+                      type="text"
+                      value={firebaseCfg.databaseId || '(default)'}
+                      onChange={(e) => setFirebaseCfg({ ...firebaseCfg, databaseId: e.target.value })}
+                      placeholder="(default) ou nom de votre 2e base..."
+                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono text-[11px] focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
+                    />
+                    <span className="text-[10px] text-neutral-500">
+                      💡 Laissez <code>(default)</code> ou indiquez le nom de votre 2e base si vous en avez déjà une.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-700 mb-0.5">
+                      Domaine Auth (authDomain)
+                    </label>
+                    <input
+                      type="text"
+                      value={firebaseCfg.authDomain}
+                      onChange={(e) => setFirebaseCfg({ ...firebaseCfg, authDomain: e.target.value })}
+                      placeholder="mon-projet.firebaseapp.com"
+                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono text-[11px] focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-1.5 px-3 bg-[#cf4c1b] hover:bg-[#b83811] text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Enregistrer & Connecter</span>
+                  </button>
+                  {isFirebaseConnected && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearSavedFirebaseConfig();
+                        setIsFirebaseConnected(false);
+                        setFirebaseUser(null);
+                        setFirebaseCfg({
+                          apiKey: '',
+                          authDomain: '',
+                          projectId: '',
+                          databaseId: '(default)',
+                          appId: ''
+                        });
+                        setSyncStatus({ type: 'success', message: 'Configuration Firebase effacée du navigateur.' });
+                      }}
+                      className="py-1.5 px-3 border border-neutral-300 hover:bg-neutral-100 text-neutral-600 text-xs rounded-lg transition-colors"
+                      title="Effacer"
+                    >
+                      Effacer
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {/* 3. Fichiers Icônes sur GitHub (Lecture Seule) */}
+              <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-neutral-900 text-xs flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-[#cf4c1b]" />
+                    <span>Fichiers Icônes sur GitHub (Lecture Seule)</span>
+                  </h4>
+                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                    Protégé
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-neutral-600 leading-relaxed">
+                  Sur <strong>GitHub Pages</strong>, les fichiers committés dans le dépôt Git (ex: dans le dossier <code>public/icons/</code>) sont hébergés statiquement sur CDN : ils sont <strong>strictement en lecture seule pour tous les visiteurs</strong>.
+                </p>
+
+                <div className="p-3 bg-white rounded-lg border border-neutral-200 space-y-2">
+                  <div className="font-semibold text-neutral-800 text-[11px]">
+                    Comment ajouter vos icônes dans GitHub :
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-[11px] text-neutral-600">
+                    <li>Déposez vos fichiers <code>.svg</code> ou <code>.png</code> dans le dossier <code>public/icons/</code> de votre projet.</li>
+                    <li>Effectuez votre commit et push vers GitHub (<code>git push</code>).</li>
+                    <li>Dans l'onglet <strong>Icônes</strong>, indiquez simplement le chemin : <code>icons/mon-fichier.svg</code>.</li>
+                  </ol>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-neutral-700">Icônes déjà prêtes dans votre projet :</span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {GITHUB_SAMPLE_ICONS.map((item) => (
+                      <div
+                        key={item.path}
+                        className="p-2 bg-white rounded-lg border border-neutral-200 flex flex-col items-center text-center gap-1 hover:border-[#cf4c1b] transition-colors"
+                      >
+                        <img src={item.path} alt="" className="w-5 h-5 object-contain" />
+                        <span className="font-mono text-[9px] text-neutral-700 truncate w-full">{item.path}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Règles de Sécurité Firestore (firestore.rules) */}
+              <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-neutral-900 text-xs flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#cf4c1b]" />
+                    <span>Règles de sécurité Firestore (firestore.rules)</span>
+                  </h4>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generateFirestoreRules(firebaseUser?.email || authEmailInput || 'mezitineraires@gmail.com'));
+                      setCopiedRules(true);
+                      setTimeout(() => setCopiedRules(false), 2000);
+                    }}
+                    className="py-1 px-2.5 rounded bg-white hover:bg-neutral-100 border border-neutral-300 text-neutral-700 text-[10px] font-semibold flex items-center gap-1 shadow-2xs"
+                  >
+                    {copiedRules ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedRules ? 'Copié !' : 'Copier'}</span>
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-neutral-500">
+                  Collez ce bloc dans <strong>Firestore Database &gt; Règles</strong> pour garantir : lecture publique pour tous, écriture réservée à votre email.
+                </p>
+
+                <pre className="p-3 bg-neutral-900 text-neutral-100 rounded-lg text-[10px] font-mono overflow-x-auto leading-relaxed border border-neutral-800">
+{generateFirestoreRules(firebaseUser?.email || authEmailInput || 'mezitineraires@gmail.com')}
+                </pre>
+              </div>
+
+              {/* 5. Guide interactif pas à pas */}
+              <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3">
+                <h4 className="font-bold text-neutral-900 text-xs flex items-center gap-1.5">
+                  <HelpCircle className="w-3.5 h-3.5 text-[#cf4c1b]" />
+                  <span>Guide pas à pas</span>
+                </h4>
+
+                <div className="flex gap-1 border-b border-neutral-200 pb-1 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGuideTab('existing_db')}
+                    className={`py-1 px-2 rounded text-[10px] font-semibold whitespace-nowrap ${
+                      selectedGuideTab === 'existing_db' ? 'bg-[#cf4c1b] text-white' : 'text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    Base existante
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGuideTab('auth')}
+                    className={`py-1 px-2 rounded text-[10px] font-semibold whitespace-nowrap ${
+                      selectedGuideTab === 'auth' ? 'bg-[#cf4c1b] text-white' : 'text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    Email & Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGuideTab('rules')}
+                    className={`py-1 px-2 rounded text-[10px] font-semibold whitespace-nowrap ${
+                      selectedGuideTab === 'rules' ? 'bg-[#cf4c1b] text-white' : 'text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    Règles Firestore
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGuideTab('github_icons')}
+                    className={`py-1 px-2 rounded text-[10px] font-semibold whitespace-nowrap ${
+                      selectedGuideTab === 'github_icons' ? 'bg-[#cf4c1b] text-white' : 'text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    Fichiers GitHub
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-neutral-700 leading-relaxed space-y-2">
+                  {selectedGuideTab === 'existing_db' && (
+                    <div className="space-y-2">
+                      <div className="font-bold text-neutral-900">
+                        Comment faire si vous avez DÉJÀ une base dans Firebase ?
+                      </div>
+                      <p>
+                        Vous avez deux solutions très simples et 100% compatibles :
+                      </p>
+                      <div className="p-2.5 rounded-lg bg-white border border-neutral-200 space-y-1">
+                        <strong className="text-emerald-800">Option 1 (Recommandée) : Nouveau projet Firebase dédié</strong>
+                        <p className="text-neutral-600 text-[10px]">
+                          Dans Firebase Console, cliquez sur <em>« Ajouter un projet »</em> (ex: <code>mez-itineraires-gravel</code>). C'est entièrement gratuit, et cela permet d'isoler parfaitement les utilisateurs et les règles sans aucun impact sur votre autre projet.
+                        </p>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-white border border-neutral-200 space-y-1">
+                        <strong className="text-blue-800">Option 2 : Base nommée (Named Database)</strong>
+                        <p className="text-neutral-600 text-[10px]">
+                          Dans votre projet existant, allez sur <em>Firestore Database</em> &gt; cliquez sur le sélecteur de base en haut &gt; <em>« Créer une base de données »</em> &gt; nommez-la par exemple <code>gravel-db</code>. Renseignez ensuite <code>gravel-db</code> dans le champ <em>Nom de la Base (databaseId)</em> ci-dessus !
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedGuideTab === 'auth' && (
+                    <div className="space-y-1.5">
+                      <div className="font-bold text-neutral-900">Activer Email & Password dans Firebase :</div>
+                      <ol className="list-decimal list-inside space-y-1 text-neutral-600">
+                        <li>Rendez-vous dans la console Firebase &gt; <strong>Authentication</strong>.</li>
+                        <li>Onglet <strong>Sign-in method</strong> &gt; Cliquez sur <strong>Adresse e-mail/mot de passe</strong> &gt; Activez le premier commutateur &gt; Enregistrer.</li>
+                        <li>Onglet <strong>Users</strong> &gt; Cliquez sur <strong>Ajouter un utilisateur</strong>.</li>
+                        <li>Entrez votre e-mail (ex: <code>mezitineraires@gmail.com</code>) et définissez votre mot de passe secret.</li>
+                        <li>Vous pouvez désormais vous connecter dans le formulaire ci-dessus pour obtenir les droits d'écriture !</li>
+                      </ol>
+                    </div>
+                  )}
+
+                  {selectedGuideTab === 'rules' && (
+                    <div className="space-y-1.5">
+                      <div className="font-bold text-neutral-900">Appliquer les règles de sécurité :</div>
+                      <p className="text-neutral-600">
+                        Allez dans Firestore Database &gt; onglet <strong>Règles</strong> &gt; remplacez tout par le code fourni dans l'encadré ci-dessus &gt; cliquez sur <strong>Publier</strong>.
+                      </p>
+                      <p className="text-[10px] text-emerald-800 font-medium">
+                        ✓ Vos données sont protégées : personne d'autre que votre compte ne peut modifier ou supprimer la configuration du portail.
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedGuideTab === 'github_icons' && (
+                    <div className="space-y-1.5">
+                      <div className="font-bold text-neutral-900">Fichiers GitHub en lecture seule :</div>
+                      <p className="text-neutral-600">
+                        GitHub Pages sert vos fichiers de manière statique. Les utilisateurs n'ont aucun droit d'écriture sur votre repository Git, ce qui garantit que vos icônes et logos hébergés dans <code>public/icons/</code> ne peuvent jamais être altérés.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ---------------------------------------------------- */}
           {/* ONGLET SÉCURITÉ : HACHAGE SHA-256 SANS MOT DE PASSE  */}
           {/* ---------------------------------------------------- */}
@@ -1752,6 +2513,34 @@ export default function App() {
                           {renderIconGraphic(preset, 24)}
                         </button>
                       ))}
+                    </div>
+
+                    {/* Raccourcis Icônes GitHub stockées dans le projet */}
+                    <div className="mt-2 p-2 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] text-neutral-600 font-semibold">
+                        <span className="flex items-center gap-1">
+                          <Globe className="w-3 h-3 text-[#cf4c1b]" />
+                          <span>Fichiers GitHub (public/icons/) :</span>
+                        </span>
+                        <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium">Lecture seule</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {GITHUB_SAMPLE_ICONS.map((gh) => (
+                          <button
+                            key={gh.path}
+                            type="button"
+                            onClick={() => setEditingIcon({ ...editingIcon, iconPath: gh.path })}
+                            className={`px-2 py-1 text-[10px] rounded border transition-colors flex items-center gap-1.5 ${
+                              editingIcon.iconPath === gh.path
+                                ? 'bg-[#cf4c1b]/15 text-[#cf4c1b] border-[#cf4c1b]'
+                                : 'bg-white hover:bg-neutral-100 text-neutral-700 border-neutral-200'
+                            }`}
+                          >
+                            <img src={gh.path} alt="" className="w-3.5 h-3.5 object-contain" />
+                            <span>{gh.path}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="mt-2">
