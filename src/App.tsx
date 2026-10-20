@@ -183,7 +183,7 @@ const DEFAULT_CONFIG: PageConfig = {
   labelFontSize: 13,
 
   showVersion: true,
-  versionText: 'v 1.3 FabriziodelaRusta',
+  versionText: 'v 1.4 FabriziodelaRusta',
   versionColor: '#786c5e',
 
   security: {
@@ -302,9 +302,14 @@ export default function App() {
         if (parsed.security && (parsed.security as any).adminPassword) {
           delete (parsed.security as any).adminPassword;
         }
+        let effectiveVersion = parsed.versionText;
+        if (!effectiveVersion || effectiveVersion.startsWith('v 1.2') || effectiveVersion.startsWith('v 1.3')) {
+          effectiveVersion = DEFAULT_CONFIG.versionText;
+        }
         return {
           ...DEFAULT_CONFIG,
           ...parsed,
+          versionText: effectiveVersion,
           logo: { ...DEFAULT_CONFIG.logo, ...(parsed.logo || {}) },
           security: { ...DEFAULT_CONFIG.security, ...(parsed.security || {}) }
         };
@@ -840,11 +845,24 @@ export default function App() {
     }
   };
 
+  // Helper to detect if an icon path is an external HTTP/HTTPS URL (including typo tolerance 'hhtp')
+  const isHttpUrlIcon = (path: string): boolean => {
+    if (!path) return false;
+    const p = path.trim().toLowerCase();
+    return (
+      p.startsWith('http://') ||
+      p.startsWith('https://') ||
+      p.startsWith('hhtp://') ||
+      p.startsWith('hhtps://')
+    );
+  };
+
   // Helper to render an icon given its path or preset name
-  const renderIconGraphic = (path: string, size = 48) => {
+  // For icons starting with http/https, they take 100% of the reserved space with no reduction
+  const renderIconGraphic = (path: string, size = 48, fullSize = false) => {
+    const isHttp = isHttpUrlIcon(path);
     const isImageFile =
-      path.startsWith('http://') ||
-      path.startsWith('https://') ||
+      isHttp ||
       path.startsWith('data:') ||
       path.startsWith('/') ||
       path.endsWith('.png') ||
@@ -855,12 +873,18 @@ export default function App() {
       path.endsWith('.ico');
 
     if (isImageFile) {
+      const takeFull = fullSize || isHttp;
       return (
         <img
           src={path}
           alt="Icône"
-          style={{ width: `${size * 0.65}px`, height: `${size * 0.65}px` }}
-          className="object-contain"
+          style={{
+            width: takeFull ? `${size}px` : `${size * 0.65}px`,
+            height: takeFull ? `${size}px` : `${size * 0.65}px`,
+            maxWidth: '100%',
+            maxHeight: '100%'
+          }}
+          className={`${takeFull ? 'w-full h-full object-contain' : 'object-contain'} select-none`}
           onError={(e) => {
             (e.target as HTMLElement).style.display = 'none';
           }}
@@ -1175,17 +1199,27 @@ export default function App() {
                     className="pointer-events-auto group flex flex-col items-center justify-center text-center p-3 rounded-2xl transition-all duration-200 hover:-translate-y-1.5 focus:outline-none"
                     style={{ minWidth: '120px' }}
                   >
-                    <div
-                      className="flex items-center justify-center rounded-2xl shadow-sm transition-all duration-200 group-hover:shadow-md group-hover:scale-105"
-                      style={{
-                        width: `${config.iconSize}px`,
-                        height: `${config.iconSize}px`,
-                        backgroundColor: config.iconBgColor,
-                        border: `1.5px solid ${config.iconBorderColor}`
-                      }}
-                    >
-                      {renderIconGraphic(item.iconPath, config.iconSize)}
-                    </div>
+                    {(() => {
+                      const isHttp = isHttpUrlIcon(item.iconPath);
+                      return (
+                        <div
+                          className={`flex items-center justify-center transition-all duration-200 group-hover:scale-105 ${
+                            isHttp
+                              ? 'p-0 bg-transparent border-0 shadow-none'
+                              : 'rounded-2xl shadow-sm group-hover:shadow-md'
+                          }`}
+                          style={{
+                            width: `${config.iconSize}px`,
+                            height: `${config.iconSize}px`,
+                            backgroundColor: isHttp ? 'transparent' : config.iconBgColor,
+                            border: isHttp ? 'none' : `1.5px solid ${config.iconBorderColor}`,
+                            boxShadow: isHttp ? 'none' : undefined
+                          }}
+                        >
+                          {renderIconGraphic(item.iconPath, config.iconSize, isHttp)}
+                        </div>
+                      );
+                    })()}
 
                     {item.label && (
                       <span
@@ -2541,8 +2575,8 @@ export default function App() {
                         className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/80 hover:bg-white hover:border-neutral-300 transition-all flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-lg bg-white border border-neutral-200 flex items-center justify-center shrink-0">
-                            {renderIconGraphic(item.iconPath, 34)}
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isHttpUrlIcon(item.iconPath) ? 'bg-transparent border-0' : 'bg-white border border-neutral-200'}`}>
+                            {renderIconGraphic(item.iconPath, 34, isHttpUrlIcon(item.iconPath))}
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-semibold text-neutral-900 truncate text-xs">{item.label || 'Sans libellé'}</h4>
@@ -2590,8 +2624,8 @@ export default function App() {
                           className="p-3 rounded-xl border border-amber-200/80 bg-amber-50/50 hover:bg-white hover:border-amber-300 transition-all flex items-center justify-between gap-3"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-9 h-9 rounded-lg bg-white border border-amber-200 flex items-center justify-center shrink-0">
-                              {renderIconGraphic(item.iconPath, 34)}
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isHttpUrlIcon(item.iconPath) ? 'bg-transparent border-0' : 'bg-white border border-amber-200'}`}>
+                              {renderIconGraphic(item.iconPath, 34, isHttpUrlIcon(item.iconPath))}
                             </div>
                             <div className="min-w-0">
                               <h4 className="font-semibold text-neutral-900 truncate text-xs">{item.label || 'Sans libellé'}</h4>
@@ -2731,10 +2765,39 @@ export default function App() {
                       type="text"
                       value={editingIcon.iconPath}
                       onChange={(e) => setEditingIcon({ ...editingIcon, iconPath: e.target.value })}
-                      placeholder="Ex: icons/velo.svg, /images/carte.png, ou Bike"
+                      placeholder="Ex: https://.../mon-icone.png, icons/velo.svg, ou Bike"
                       className="w-full px-3 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 font-mono text-xs focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
                       required
                     />
+
+                    {/* Aperçu en temps réel */}
+                    {editingIcon.iconPath && (
+                      <div className="mt-2 flex items-center gap-2.5 p-2 rounded-lg bg-white border border-neutral-200">
+                        <span className="text-[10px] text-neutral-500 font-medium">Aperçu :</span>
+                        <div
+                          className={`flex items-center justify-center ${
+                            isHttpUrlIcon(editingIcon.iconPath)
+                              ? 'p-0 bg-transparent'
+                              : 'w-10 h-10 rounded-xl bg-neutral-50 border border-neutral-300'
+                          }`}
+                          style={{
+                            width: isHttpUrlIcon(editingIcon.iconPath) ? '40px' : undefined,
+                            height: isHttpUrlIcon(editingIcon.iconPath) ? '40px' : undefined
+                          }}
+                        >
+                          {renderIconGraphic(editingIcon.iconPath, 40, isHttpUrlIcon(editingIcon.iconPath))}
+                        </div>
+                        {isHttpUrlIcon(editingIcon.iconPath) ? (
+                          <span className="text-[10px] text-emerald-700 font-semibold">
+                            ✓ URL externe (http) : affichage direct sans carré (prend toute la place réservée)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-neutral-500">
+                            Icône standard avec boîte
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-6 gap-1.5 mt-2 p-2 bg-white rounded-lg border border-neutral-200">
                       {PRESET_ICONS.map((preset) => (
