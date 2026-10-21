@@ -149,6 +149,48 @@ async function hashPassword(plain: string): Promise<string> {
 // Default initial hash for 'admin' (calculated via sha256("admin_mez_salt_topography_2026"))
 const DEFAULT_SALTED_ADMIN_HASH = '07d5fb0d1a42efd8ebad57335728a3f858276f5b9d31d927a7b8e3ad59635741';
 
+// Current official release version (incremented per user specification on every code iteration)
+export const APP_VERSION = 'v 1.5 FabriziodelaRusta';
+
+/**
+ * Ensures that if localStorage or a remote Firestore document contains an older version
+ * (such as v 1.2, v 1.3, v 1.4), the application automatically upgrades to the current official release version.
+ */
+export function resolveEffectiveVersion(candidateVersion: string | undefined | null, targetVersion: string = APP_VERSION): string {
+  if (!candidateVersion || typeof candidateVersion !== 'string' || !candidateVersion.trim()) {
+    return targetVersion;
+  }
+  const parseVer = (v: string): number[] => {
+    const m = v.match(/v?\s*(\d+(?:\.\d+)*)/i);
+    if (!m) return [0, 0, 0];
+    return m[1].split('.').map(n => parseInt(n, 10) || 0);
+  };
+
+  const [cMaj, cMin = 0, cPatch = 0] = parseVer(candidateVersion);
+  const [tMaj, tMin = 0, tPatch = 0] = parseVer(targetVersion);
+
+  // If candidate version is older than target release (e.g. 1.2 < 1.5), auto-upgrade!
+  if (cMaj < tMaj) return targetVersion;
+  if (cMaj === tMaj && cMin < tMin) return targetVersion;
+  if (cMaj === tMaj && cMin === tMin && cPatch < tPatch) return targetVersion;
+
+  return candidateVersion;
+}
+
+/**
+ * Helper to merge incoming Firestore data while ensuring outdated version strings are migrated
+ */
+function mergeConfigWithRemote(prev: PageConfig, remoteData: any): PageConfig {
+  const mergedVersion = resolveEffectiveVersion(remoteData?.versionText, APP_VERSION);
+  return {
+    ...prev,
+    ...remoteData,
+    versionText: mergedVersion,
+    logo: { ...prev.logo, ...(remoteData?.logo || {}) },
+    security: { ...prev.security, ...(remoteData?.security || {}) }
+  };
+}
+
 const DEFAULT_CONFIG: PageConfig = {
   showTitle: true,
   titleText: 'Outils & utilitaires',
@@ -183,7 +225,7 @@ const DEFAULT_CONFIG: PageConfig = {
   labelFontSize: 13,
 
   showVersion: true,
-  versionText: 'v 1.4 FabriziodelaRusta',
+  versionText: APP_VERSION,
   versionColor: '#786c5e',
 
   security: {
@@ -302,10 +344,7 @@ export default function App() {
         if (parsed.security && (parsed.security as any).adminPassword) {
           delete (parsed.security as any).adminPassword;
         }
-        let effectiveVersion = parsed.versionText;
-        if (!effectiveVersion || effectiveVersion.startsWith('v 1.2') || effectiveVersion.startsWith('v 1.3')) {
-          effectiveVersion = DEFAULT_CONFIG.versionText;
-        }
+        const effectiveVersion = resolveEffectiveVersion(parsed.versionText, APP_VERSION);
         return {
           ...DEFAULT_CONFIG,
           ...parsed,
@@ -356,12 +395,7 @@ export default function App() {
           // Auto load remote config if available
           loadPageConfigFromFirebase().then((remoteData) => {
             if (remoteData && remoteData.icons) {
-              setConfig((prev) => ({
-                ...prev,
-                ...remoteData,
-                logo: { ...prev.logo, ...(remoteData.logo || {}) },
-                security: { ...prev.security, ...(remoteData.security || {}) }
-              }));
+              setConfig((prev) => mergeConfigWithRemote(prev, remoteData));
             }
           });
         }
@@ -390,12 +424,7 @@ export default function App() {
     const unsub = subscribePageConfigFromFirebase(
       (remoteData) => {
         if (remoteData && remoteData.icons) {
-          setConfig((prev) => ({
-            ...prev,
-            ...remoteData,
-            logo: { ...prev.logo, ...(remoteData.logo || {}) },
-            security: { ...prev.security, ...(remoteData.security || {}) }
-          }));
+          setConfig((prev) => mergeConfigWithRemote(prev, remoteData));
         }
       },
       (err) => {
@@ -421,12 +450,7 @@ export default function App() {
         setSyncStatus({ type: 'success', message: "Firebase connecté avec succès !" });
         const remoteData = await loadPageConfigFromFirebase();
         if (remoteData && remoteData.icons) {
-          setConfig((prev) => ({
-            ...prev,
-            ...remoteData,
-            logo: { ...prev.logo, ...(remoteData.logo || {}) },
-            security: { ...prev.security, ...(remoteData.security || {}) }
-          }));
+          setConfig((prev) => mergeConfigWithRemote(prev, remoteData));
         }
       } else {
         setIsFirebaseConnected(false);
@@ -495,12 +519,7 @@ export default function App() {
     try {
       const remoteData = await loadPageConfigFromFirebase();
       if (remoteData && remoteData.icons) {
-        setConfig((prev) => ({
-          ...prev,
-          ...remoteData,
-          logo: { ...prev.logo, ...(remoteData.logo || {}) },
-          security: { ...prev.security, ...(remoteData.security || {}) }
-        }));
+        setConfig((prev) => mergeConfigWithRemote(prev, remoteData));
         setSyncStatus({ type: 'success', message: "Configuration chargée depuis Firestore !" });
       } else {
         setSyncStatus({ type: 'error', message: "Aucune configuration trouvée dans Firestore (/portal_config/settings)." });
@@ -3365,6 +3384,37 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Statut de version & synchronisation automatique */}
+              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-amber-900">Version du code actuelle :</span>
+                  <span className="font-mono font-bold text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300">
+                    {APP_VERSION}
+                  </span>
+                </div>
+                <p className="text-neutral-600 text-[11px] leading-relaxed">
+                  L&apos;application migre automatiquement les anciennes versions enregistrées dans la base de données Firestore ou le stockage local (&le; 1.4) vers <strong>{APP_VERSION}</strong>.
+                </p>
+                {config.versionText !== APP_VERSION && (
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, versionText: APP_VERSION })}
+                    className="w-full mt-1 py-1.5 px-3 bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-2xs"
+                  >
+                    Rétablir la version officielle ({APP_VERSION})
+                  </button>
+                )}
+                {isFirebaseConnected && firebaseUser && (
+                  <button
+                    type="button"
+                    onClick={handleSaveToFirebase}
+                    className="w-full py-1.5 px-3 bg-[#cf4c1b] hover:bg-[#b03d14] text-white rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-2xs flex items-center justify-center gap-1.5"
+                  >
+                    <span>Enregistrer {config.versionText} sur Firebase</span>
+                  </button>
+                )}
+              </div>
+
               <div>
                 <label className="block font-semibold text-neutral-800 mb-1">
                   Texte du numéro de version
@@ -3373,7 +3423,7 @@ export default function App() {
                   type="text"
                   value={config.versionText}
                   onChange={(e) => setConfig({ ...config, versionText: e.target.value })}
-                  placeholder="v 1.2 FabriziodelaRusta"
+                  placeholder={APP_VERSION}
                   className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 font-mono text-xs focus:ring-1 focus:ring-[#cf4c1b] focus:outline-none"
                 />
               </div>
